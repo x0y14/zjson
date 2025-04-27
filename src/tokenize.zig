@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const tokenkind = enum {
+pub const tokenkind = enum {
     illegal,
     eof,
     whitespace,
@@ -11,7 +11,7 @@ const tokenkind = enum {
     colon, // :
 };
 
-const token = struct {
+pub const token = struct {
     kind: tokenkind,
     raw: []const u8,
     next: *token,
@@ -29,7 +29,7 @@ const token = struct {
     }
 };
 
-const TokenizeError = error{
+pub const TokenizeError = error{
     UnexpectedChar,
 };
 
