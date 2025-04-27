@@ -51,6 +51,26 @@ fn consumeWhiteSpace(allocator: std.mem.Allocator) *token {
     return ws_ptr;
 }
 
+fn consumeString(allocator: std.mem.Allocator) *token {
+    var list = std.ArrayList(u8).init(allocator);
+    pos += 1; // consume opening double-quo
+    str_loop: while (chars.len > pos) {
+        switch (chars[pos]) {
+            '"' => {
+                pos += 1; // consume closing double-quo
+                break :str_loop;
+            },
+            else => {
+                list.append(chars[pos]) catch unreachable;
+                pos += 1;
+            },
+        }
+    }
+    const owned_slice = list.toOwnedSlice() catch unreachable;
+    const str_ptr = token.init(allocator, tokenkind.string, owned_slice) catch unreachable;
+    return str_ptr;
+}
+
 pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8) TokenizeError!*token {
     chars = user_input;
     pos = 0;
@@ -61,6 +81,11 @@ pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8) TokenizeEr
         switch (chars[pos]) {
             ' ' => {
                 const tok = consumeWhiteSpace(allocator);
+                curt.next = tok;
+                curt = curt.next;
+            },
+            '"' => {
+                const tok = consumeString(allocator);
                 curt.next = tok;
                 curt = curt.next;
             },
@@ -89,4 +114,19 @@ test "ws" {
     // eql関数を使用して比較
     try std.testing.expect(expect_ws_ptr.*.eql(actual.*));
     try std.testing.expect(expect_ws_ptr.next.*.eql(actual.next.*));
+}
+
+test "str" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const expect_str_ptr = token.init(arena.allocator(), tokenkind.string, "hello") catch unreachable;
+    const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+    expect_str_ptr.next = expect_eof_ptr;
+
+    const actual = tokenize(arena.allocator(), "\"hello\"") catch unreachable;
+
+    // eql関数を使用して比較
+    try std.testing.expect(expect_str_ptr.*.eql(actual.*));
+    try std.testing.expect(expect_str_ptr.next.*.eql(actual.next.*));
 }
