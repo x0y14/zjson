@@ -130,3 +130,23 @@ test "str" {
     try std.testing.expect(expect_str_ptr.*.eql(actual.*));
     try std.testing.expect(expect_str_ptr.next.*.eql(actual.next.*));
 }
+
+test "ws-str-ws" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const expect_ws_1_ptr = token.init(arena.allocator(), tokenkind.whitespace, " ") catch unreachable;
+    const expect_str_ptr = token.init(arena.allocator(), tokenkind.string, "hello") catch unreachable;
+    const expect_ws_2_ptr = token.init(arena.allocator(), tokenkind.whitespace, " ") catch unreachable;
+    const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+    expect_ws_1_ptr.next = expect_str_ptr;
+    expect_str_ptr.next = expect_ws_2_ptr;
+    expect_ws_2_ptr.next = expect_eof_ptr;
+
+    const actual = tokenize(arena.allocator(), " \"hello\" ") catch unreachable;
+
+    try std.testing.expect(expect_ws_1_ptr.*.eql(actual.*));
+    try std.testing.expect(expect_str_ptr.*.eql(actual.next.*));
+    try std.testing.expect(expect_ws_2_ptr.*.eql(actual.next.next.*));
+    try std.testing.expect(expect_eof_ptr.*.eql(actual.next.next.next.*));
+}
