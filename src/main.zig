@@ -5,6 +5,10 @@ const tokenkind = enum {
     eof,
     whitespace,
     string,
+
+    lcb, // {
+    rcb, // }
+    colon, // :
 };
 
 const token = struct {
@@ -71,6 +75,27 @@ fn consumeString(allocator: std.mem.Allocator) *token {
     return str_ptr;
 }
 
+fn consumeSymbol(allocator: std.mem.Allocator) TokenizeError!*token {
+    switch (chars[pos]) {
+        '{' => {
+            pos += 1;
+            return token.init(allocator, tokenkind.lcb, &.{}) catch unreachable;
+        },
+        '}' => {
+            pos += 1;
+            return token.init(allocator, tokenkind.rcb, &.{}) catch unreachable;
+        },
+        ':' => {
+            pos += 1;
+            return token.init(allocator, tokenkind.colon, &.{}) catch unreachable;
+        },
+        else => {
+            pos += 1;
+            return TokenizeError.UnexpectedChar;
+        },
+    }
+}
+
 pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8) TokenizeError!*token {
     chars = user_input;
     pos = 0;
@@ -86,6 +111,11 @@ pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8) TokenizeEr
             },
             '"' => {
                 const tok = consumeString(allocator);
+                curt.next = tok;
+                curt = curt.next;
+            },
+            '{', '}', ':' => {
+                const tok = consumeSymbol(allocator) catch unreachable;
                 curt.next = tok;
                 curt = curt.next;
             },
@@ -149,4 +179,19 @@ test "ws-str-ws" {
     try std.testing.expect(expect_str_ptr.*.eql(actual.next.*));
     try std.testing.expect(expect_ws_2_ptr.*.eql(actual.next.next.*));
     try std.testing.expect(expect_eof_ptr.*.eql(actual.next.next.next.*));
+}
+
+test "symbol" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const expect_ws_ptr = token.init(arena.allocator(), tokenkind.lcb, &.{}) catch unreachable;
+    const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+    expect_ws_ptr.next = expect_eof_ptr;
+
+    const actual = tokenize(arena.allocator(), "{") catch unreachable;
+
+    // eql関数を使用して比較
+    try std.testing.expect(expect_ws_ptr.*.eql(actual.*));
+    try std.testing.expect(expect_ws_ptr.next.*.eql(actual.next.*));
 }
