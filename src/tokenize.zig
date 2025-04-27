@@ -8,7 +8,10 @@ pub const tokenkind = enum {
 
     lcb, // {
     rcb, // }
+    lsb, // [
+    rsb, // ]
     colon, // :
+    comma, // ,
 };
 
 pub const token = struct {
@@ -91,9 +94,21 @@ fn consumeSymbol(allocator: std.mem.Allocator) TokenizeError!*token {
             pos += 1;
             return token.init(allocator, tokenkind.rcb, &.{}) catch unreachable;
         },
+        '[' => {
+            pos += 1;
+            return token.init(allocator, tokenkind.lsb, &.{}) catch unreachable;
+        },
+        ']' => {
+            pos += 1;
+            return token.init(allocator, tokenkind.rsb, &.{}) catch unreachable;
+        },
         ':' => {
             pos += 1;
             return token.init(allocator, tokenkind.colon, &.{}) catch unreachable;
+        },
+        ',' => {
+            pos += 1;
+            return token.init(allocator, tokenkind.comma, &.{}) catch unreachable;
         },
         else => {
             pos += 1;
@@ -122,7 +137,7 @@ pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8, clean: boo
                 curt.next = tok;
                 curt = curt.next;
             },
-            '{', '}', ':' => {
+            '{', '}', '[', ']', ':', ',' => {
                 const tok = consumeSymbol(allocator) catch unreachable;
                 curt.next = tok;
                 curt = curt.next;
@@ -241,6 +256,39 @@ test "string-kv" {
     try std.testing.expect(exp_w3.*.eql(actual.next.next.next.next.next.next.*));
     try std.testing.expect(exp_rcb.*.eql(actual.next.next.next.next.next.next.next.*));
     try std.testing.expect(exp_eof.*.eql(actual.next.next.next.next.next.next.next.next.*));
+}
+
+test "string-arrary" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    // [ "a", "b", "c" ]
+    const exp_lsb = token.init(arena.allocator(), tokenkind.lsb, &.{}) catch unreachable;
+    const exp_str_a = token.init(arena.allocator(), tokenkind.string, "a") catch unreachable;
+    const exp_comma_1 = token.init(arena.allocator(), tokenkind.comma, &.{}) catch unreachable;
+    const exp_str_b = token.init(arena.allocator(), tokenkind.string, "b") catch unreachable;
+    const exp_comma_2 = token.init(arena.allocator(), tokenkind.comma, &.{}) catch unreachable;
+    const exp_str_c = token.init(arena.allocator(), tokenkind.string, "c") catch unreachable;
+    const exp_rsb = token.init(arena.allocator(), tokenkind.rsb, &.{}) catch unreachable;
+    const exp_eof = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+    exp_lsb.next = exp_str_a;
+    exp_str_a.next = exp_comma_1;
+    exp_comma_1.next = exp_str_b;
+    exp_str_b.next = exp_comma_2;
+    exp_comma_2.next = exp_str_c;
+    exp_str_c.next = exp_rsb;
+    exp_rsb.next = exp_eof;
+
+    const actual = tokenize(arena.allocator(), "[ \"a\", \"b\", \"c\" ]", true) catch unreachable;
+
+    try std.testing.expect(exp_lsb.*.eql(actual.*));
+    try std.testing.expect(exp_str_a.*.eql(actual.next.*));
+    try std.testing.expect(exp_comma_1.*.eql(actual.next.next.*));
+    try std.testing.expect(exp_str_b.*.eql(actual.next.next.next.*));
+    try std.testing.expect(exp_comma_2.*.eql(actual.next.next.next.next.*));
+    try std.testing.expect(exp_str_c.*.eql(actual.next.next.next.next.next.*));
+    try std.testing.expect(exp_rsb.*.eql(actual.next.next.next.next.next.next.*));
+    try std.testing.expect(exp_eof.*.eql(actual.next.next.next.next.next.next.next.*));
 }
 
 test "clean" {
