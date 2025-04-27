@@ -23,6 +23,12 @@ pub const token = struct {
         return tok_ptr;
     }
 
+    pub fn initIllegal(allocator: std.mem.Allocator) !*token {
+        const tok = allocator.create(token) catch return error.OutOfMemory;
+        tok.* = .{ .kind = tokenkind.illegal, .raw = &.{}, .next = undefined };
+        return tok;
+    }
+
     // フィールドごとの比較を行う関数を追加
     fn eql(self: @This(), other: @This()) bool {
         return self.kind == other.kind and std.mem.eql(u8, self.raw, other.raw);
