@@ -1,0 +1,16 @@
+name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Build and Test
+    steps:
+      - uses: actions/checkout@v3
+      - uses: mlugg/setup-zig@v1
+      - run: zig build test
+      - name: my code test
+        run: |
+          zig test src/root.zig
+          zig test src/main.zig
+          zig test src/tokenize.zig
+          zig test src/parse.zig
