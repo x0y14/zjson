@@ -113,11 +113,21 @@ fn key(allocator: std.mem.Allocator) ParseError!*Node {
 
 fn value(allocator: std.mem.Allocator) ParseError!*Node {
     var v: ?*tknz.token = null;
+    // string
     v = consume(tknz.tokenkind.string);
     if (v != null) {
         return Node.initString(allocator, v.?.raw) catch return ParseError.OutOfMemory;
     }
-
+    // object
+    v = consume(tknz.tokenkind.lcb);
+    if (v != null) {
+        return object(allocator);
+    }
+    // array
+    v = consume(tknz.tokenkind.lsb);
+    if (v != null) {
+        return array(allocator);
+    }
     return ParseError.UnexpectedToken;
 }
 
@@ -142,8 +152,26 @@ fn object(allocator: std.mem.Allocator) ParseError!*Node {
 }
 
 fn array(allocator: std.mem.Allocator) ParseError!*Node {
-    _ = allocator;
-    return ParseError.UnexpectedToken;
+    var children = std.ArrayList(*Node).init(allocator);
+    while (consume(tknz.tokenkind.eof) == null) { // !is_eof
+        // ]を見つけたら抜ける
+        if (consume(tknz.tokenkind.rsb) != null) {
+            break;
+        }
+        const child = value(allocator) catch return ParseError.UnexpectedToken;
+        try children.append(child);
+        // ,が見つからなければ
+        if (consume(tknz.tokenkind.comma) == null) {
+            // ]があるはず
+            _ = try expect(tknz.tokenkind.rsb);
+            break;
+        }
+        // ,]はダメ
+        if (consume(tknz.tokenkind.rsb) != null) {
+            return ParseError.UnexpectedToken;
+        }
+    }
+    return Node.initArray(allocator, try children.toOwnedSlice()) catch return ParseError.OutOfMemory;
 }
 
 pub fn parse(allocator: std.mem.Allocator, user_input: *tknz.token) ParseError!*Node {
@@ -154,7 +182,9 @@ pub fn parse(allocator: std.mem.Allocator, user_input: *tknz.token) ParseError!*
     if (consume(tknz.tokenkind.lcb) != null) {
         return object(allocator);
     }
-    // TODO : [
+    if (consume(tknz.tokenkind.lsb) != null) {
+        return array(allocator);
+    }
     return ParseError.UnexpectedToken;
 }
 
@@ -225,6 +255,15 @@ test "parse" {
     const w_kv = Node.initKV(arena.allocator(), w_key, w_val) catch unreachable;
     want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv})) catch unreachable;
     tokens = tknz.tokenize(arena.allocator(), "{\"key\":\"value\"}", true) catch unreachable;
+    got = parse(arena.allocator(), tokens) catch unreachable;
+    try std.testing.expect(nodesEqual(want, got));
+
+    // string-array
+    const w_a = Node.initString(arena.allocator(), "a") catch unreachable;
+    const w_b = Node.initString(arena.allocator(), "b") catch unreachable;
+    const w_c = Node.initString(arena.allocator(), "c") catch unreachable;
+    want = Node.initArray(arena.allocator(), @constCast(&[_]*Node{ w_a, w_b, w_c })) catch unreachable;
+    tokens = tknz.tokenize(arena.allocator(), "[\"a\", \"b\", \"c\"]", true) catch unreachable;
     got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
 }
