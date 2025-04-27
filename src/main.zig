@@ -195,3 +195,38 @@ test "symbol" {
     try std.testing.expect(expect_ws_ptr.*.eql(actual.*));
     try std.testing.expect(expect_ws_ptr.next.*.eql(actual.next.*));
 }
+
+test "string-kv" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    // { "key": "value" }
+    const exp_lcb = token.init(arena.allocator(), tokenkind.lcb, &.{}) catch unreachable;
+    const exp_w1 = token.init(arena.allocator(), tokenkind.whitespace, " ") catch unreachable;
+    const exp_key = token.init(arena.allocator(), tokenkind.string, "key") catch unreachable;
+    const exp_colon = token.init(arena.allocator(), tokenkind.colon, &.{}) catch unreachable;
+    const exp_w2 = token.init(arena.allocator(), tokenkind.whitespace, " ") catch unreachable;
+    const exp_val = token.init(arena.allocator(), tokenkind.string, "value") catch unreachable;
+    const exp_w3 = token.init(arena.allocator(), tokenkind.whitespace, " ") catch unreachable;
+    const exp_rcb = token.init(arena.allocator(), tokenkind.rcb, &.{}) catch unreachable;
+    const exp_eof = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+    exp_lcb.next = exp_w1;
+    exp_w1.next = exp_key;
+    exp_key.next = exp_colon;
+    exp_colon.next = exp_w2;
+    exp_w2.next = exp_val;
+    exp_val.next = exp_w3;
+    exp_w3.next = exp_rcb;
+    exp_rcb.next = exp_eof;
+
+    const actual = tokenize(arena.allocator(), "{ \"key\": \"value\" }") catch unreachable;
+
+    try std.testing.expect(exp_lcb.*.eql(actual.*));
+    try std.testing.expect(exp_w1.*.eql(actual.next.*));
+    try std.testing.expect(exp_key.*.eql(actual.next.next.*));
+    try std.testing.expect(exp_colon.*.eql(actual.next.next.next.*));
+    try std.testing.expect(exp_w2.*.eql(actual.next.next.next.next.*));
+    try std.testing.expect(exp_val.*.eql(actual.next.next.next.next.next.*));
+    try std.testing.expect(exp_w3.*.eql(actual.next.next.next.next.next.next.*));
+    try std.testing.expect(exp_rcb.*.eql(actual.next.next.next.next.next.next.next.*));
+    try std.testing.expect(exp_eof.*.eql(actual.next.next.next.next.next.next.next.next.*));
+}
