@@ -102,7 +102,7 @@ fn consumeSymbol(allocator: std.mem.Allocator) TokenizeError!*token {
     }
 }
 
-pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8) TokenizeError!*token {
+pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8, clean: bool) TokenizeError!*token {
     chars = user_input;
     pos = 0;
     const head_ptr = token.init(allocator, tokenkind.illegal, &.{}) catch unreachable;
@@ -112,8 +112,10 @@ pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8) TokenizeEr
         switch (chars[pos]) {
             ' ' => {
                 const tok = consumeWhiteSpace(allocator);
-                curt.next = tok;
-                curt = curt.next;
+                if (!clean) {
+                    curt.next = tok;
+                    curt = curt.next;
+                }
             },
             '"' => {
                 const tok = consumeString(allocator);
@@ -145,7 +147,7 @@ test "ws" {
     const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
     expect_ws_ptr.next = expect_eof_ptr;
 
-    const actual = tokenize(arena.allocator(), "   ") catch unreachable;
+    const actual = tokenize(arena.allocator(), "   ", false) catch unreachable;
 
     // eql関数を使用して比較
     try std.testing.expect(expect_ws_ptr.*.eql(actual.*));
@@ -160,7 +162,11 @@ test "str" {
     const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
     expect_str_ptr.next = expect_eof_ptr;
 
-    const actual = tokenize(arena.allocator(), "\"hello\"") catch unreachable;
+    const actual = tokenize(
+        arena.allocator(),
+        "\"hello\"",
+        false,
+    ) catch unreachable;
 
     // eql関数を使用して比較
     try std.testing.expect(expect_str_ptr.*.eql(actual.*));
@@ -179,7 +185,7 @@ test "ws-str-ws" {
     expect_str_ptr.next = expect_ws_2_ptr;
     expect_ws_2_ptr.next = expect_eof_ptr;
 
-    const actual = tokenize(arena.allocator(), " \"hello\" ") catch unreachable;
+    const actual = tokenize(arena.allocator(), " \"hello\" ", false) catch unreachable;
 
     try std.testing.expect(expect_ws_1_ptr.*.eql(actual.*));
     try std.testing.expect(expect_str_ptr.*.eql(actual.next.*));
@@ -195,7 +201,7 @@ test "symbol" {
     const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
     expect_ws_ptr.next = expect_eof_ptr;
 
-    const actual = tokenize(arena.allocator(), "{") catch unreachable;
+    const actual = tokenize(arena.allocator(), "{", false) catch unreachable;
 
     // eql関数を使用して比較
     try std.testing.expect(expect_ws_ptr.*.eql(actual.*));
@@ -224,7 +230,7 @@ test "string-kv" {
     exp_w3.next = exp_rcb;
     exp_rcb.next = exp_eof;
 
-    const actual = tokenize(arena.allocator(), "{ \"key\": \"value\" }") catch unreachable;
+    const actual = tokenize(arena.allocator(), "{ \"key\": \"value\" }", false) catch unreachable;
 
     try std.testing.expect(exp_lcb.*.eql(actual.*));
     try std.testing.expect(exp_w1.*.eql(actual.next.*));
@@ -235,4 +241,30 @@ test "string-kv" {
     try std.testing.expect(exp_w3.*.eql(actual.next.next.next.next.next.next.*));
     try std.testing.expect(exp_rcb.*.eql(actual.next.next.next.next.next.next.next.*));
     try std.testing.expect(exp_eof.*.eql(actual.next.next.next.next.next.next.next.next.*));
+}
+
+test "clean" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    // { "key": "value" }
+    const exp_lcb = token.init(arena.allocator(), tokenkind.lcb, &.{}) catch unreachable;
+    const exp_key = token.init(arena.allocator(), tokenkind.string, "key") catch unreachable;
+    const exp_colon = token.init(arena.allocator(), tokenkind.colon, &.{}) catch unreachable;
+    const exp_val = token.init(arena.allocator(), tokenkind.string, "value") catch unreachable;
+    const exp_rcb = token.init(arena.allocator(), tokenkind.rcb, &.{}) catch unreachable;
+    const exp_eof = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+    exp_lcb.next = exp_key;
+    exp_key.next = exp_colon;
+    exp_colon.next = exp_val;
+    exp_val.next = exp_rcb;
+    exp_rcb.next = exp_eof;
+
+    const actual = tokenize(arena.allocator(), "{ \"key\": \"value\" }", true) catch unreachable;
+
+    try std.testing.expect(exp_lcb.*.eql(actual.*));
+    try std.testing.expect(exp_key.*.eql(actual.next.*));
+    try std.testing.expect(exp_colon.*.eql(actual.next.next.*));
+    try std.testing.expect(exp_val.*.eql(actual.next.next.next.*));
+    try std.testing.expect(exp_rcb.*.eql(actual.next.next.next.next.*));
+    try std.testing.expect(exp_eof.*.eql(actual.next.next.next.next.next.*));
 }

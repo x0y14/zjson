@@ -210,12 +210,12 @@ test "parse" {
     defer arena.deinit();
 
     // unexpected error
-    var tokens = tknz.tokenize(arena.allocator(), "") catch unreachable;
+    var tokens = tknz.tokenize(arena.allocator(), "", true) catch unreachable;
     try std.testing.expectEqual(ParseError.UnexpectedToken, parse(arena.allocator(), tokens));
 
     // empty obj
     var want = Node.initObject(arena.allocator(), &.{}) catch unreachable;
-    tokens = tknz.tokenize(arena.allocator(), "{}") catch unreachable;
+    tokens = tknz.tokenize(arena.allocator(), "{}", true) catch unreachable;
     var got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
 
@@ -224,7 +224,7 @@ test "parse" {
     const w_val = Node.initString(arena.allocator(), "value") catch unreachable;
     const w_kv = Node.initKV(arena.allocator(), w_key, w_val) catch unreachable;
     want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv})) catch unreachable;
-    tokens = tknz.tokenize(arena.allocator(), "{\"key\":\"value\"}") catch unreachable;
+    tokens = tknz.tokenize(arena.allocator(), "{\"key\":\"value\"}", true) catch unreachable;
     got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
 }
