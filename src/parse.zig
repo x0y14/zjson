@@ -147,6 +147,16 @@ fn object(allocator: std.mem.Allocator) ParseError!*Node {
         }
         const pair = kv(allocator) catch return ParseError.UnexpectedToken;
         try children.append(pair);
+        // ,が見つからなければ
+        if (consume(tknz.tokenkind.comma) == null) {
+            // }があるはず
+            _ = try expect(tknz.tokenkind.rcb);
+            break;
+        }
+        // ,}はダメ
+        if (consume(tknz.tokenkind.rcb) != null) {
+            return ParseError.UnexpectedToken;
+        }
     }
     return Node.initObject(allocator, try children.toOwnedSlice()) catch return ParseError.OutOfMemory;
 }
@@ -294,6 +304,22 @@ test "parse" {
     const w_kv_children = Node.initKV(arena.allocator(), w_k_children, w_children_array) catch unreachable;
     want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_children})) catch unreachable;
     tokens = tknz.tokenize(arena.allocator(), "{ \"children\": [ \"john\", \"tom\", \"candy\" ] }", true) catch unreachable;
+    got = parse(arena.allocator(), tokens) catch unreachable;
+    try std.testing.expect(nodesEqual(want, got));
+
+    // multiple key-value pairs
+    // { "key1": "value1", "key2": "value2" }
+    // "key1": "value1"
+    const w_key1 = Node.initString(arena.allocator(), "key1") catch unreachable;
+    const w_val1 = Node.initString(arena.allocator(), "value1") catch unreachable;
+    const w_kv1 = Node.initKV(arena.allocator(), w_key1, w_val1) catch unreachable;
+    // "key2": "value2"
+    const w_key2 = Node.initString(arena.allocator(), "key2") catch unreachable;
+    const w_val2 = Node.initString(arena.allocator(), "value2") catch unreachable;
+    const w_kv2 = Node.initKV(arena.allocator(), w_key2, w_val2) catch unreachable;
+    // { ..., ... }
+    want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ w_kv1, w_kv2 })) catch unreachable;
+    tokens = tknz.tokenize(arena.allocator(), "{ \"key1\": \"value1\", \"key2\": \"value2\" }", true) catch unreachable;
     got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
 }
