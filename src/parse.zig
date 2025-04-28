@@ -118,6 +118,11 @@ fn value(allocator: std.mem.Allocator) ParseError!*Node {
     if (v != null) {
         return Node.initString(allocator, v.?.raw) catch return ParseError.OutOfMemory;
     }
+    // number
+    v = consume(tknz.tokenkind.number);
+    if (v != null) {
+        return Node.initNumber(allocator, v.?.raw) catch return ParseError.OutOfMemory;
+    }
     // object
     v = consume(tknz.tokenkind.lcb);
     if (v != null) {
@@ -390,5 +395,42 @@ test "object with array of objects" {
     const got = parse(arena.allocator(), tokens) catch unreachable;
 
     // 9. 比較
+    try std.testing.expect(nodesEqual(want, got));
+}
+
+test "number" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    // 整数値のテスト
+    const w_int_key = Node.initString(arena.allocator(), "integer") catch unreachable;
+    const w_int_val = Node.initNumber(arena.allocator(), "42") catch unreachable;
+    const w_int_kv = Node.initKV(arena.allocator(), w_int_key, w_int_val) catch unreachable;
+
+    // 浮動小数点数のテスト
+    const w_float_key = Node.initString(arena.allocator(), "float") catch unreachable;
+    const w_float_val = Node.initNumber(arena.allocator(), "3.14") catch unreachable;
+    const w_float_kv = Node.initKV(arena.allocator(), w_float_key, w_float_val) catch unreachable;
+
+    // 負の数のテスト
+    const w_neg_key = Node.initString(arena.allocator(), "negative") catch unreachable;
+    const w_neg_val = Node.initNumber(arena.allocator(), "-10") catch unreachable;
+    const w_neg_kv = Node.initKV(arena.allocator(), w_neg_key, w_neg_val) catch unreachable;
+
+    // オブジェクトの作成
+    const want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ w_int_kv, w_float_kv, w_neg_kv })) catch unreachable;
+
+    // JSONのパース
+    const json_str =
+        \\{
+        \\  "integer": 42,
+        \\  "float": 3.14,
+        \\  "negative": -10
+        \\}
+    ;
+    const tokens = tknz.tokenize(arena.allocator(), json_str, true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
+
+    // 結果の検証
     try std.testing.expect(nodesEqual(want, got));
 }

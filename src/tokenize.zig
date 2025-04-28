@@ -5,6 +5,7 @@ pub const tokenkind = enum {
     eof,
     whitespace,
     string,
+    number,
 
     lcb, // {
     rcb, // }
@@ -40,6 +41,7 @@ pub const token = struct {
 
 pub const TokenizeError = error{
     UnexpectedChar,
+    OutOfMemory,
 };
 
 var chars: []const u8 = "";
@@ -81,6 +83,42 @@ fn consumeString(allocator: std.mem.Allocator) *token {
     }
     const owned_slice = list.toOwnedSlice() catch unreachable;
     const str_ptr = token.init(allocator, tokenkind.string, owned_slice) catch unreachable;
+    return str_ptr;
+}
+
+fn consumeNumber(allocator: std.mem.Allocator) TokenizeError!*token {
+    var list = std.ArrayList(u8).init(allocator);
+    // もしマイナスがあれば
+    if (chars[pos] == '-') {
+        try list.append(chars[pos]);
+        pos += 1;
+    }
+    // .があれば，数字に先行するのはおかしい
+    if (chars[pos] == '.') {
+        return TokenizeError.UnexpectedChar;
+    }
+    var numOfDot: u8 = 0;
+    num_loop: while (chars.len > pos) {
+        switch (chars[pos]) {
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' => {
+                try list.append(chars[pos]);
+                pos += 1;
+            },
+            '.' => {
+                numOfDot += 1;
+                if (numOfDot > 1) {
+                    return TokenizeError.UnexpectedChar;
+                }
+                try list.append(chars[pos]);
+                pos += 1;
+            },
+            else => {
+                break :num_loop;
+            },
+        }
+    }
+    const owned_slice = list.toOwnedSlice() catch unreachable;
+    const str_ptr = token.init(allocator, tokenkind.number, owned_slice) catch unreachable;
     return str_ptr;
 }
 
@@ -137,6 +175,11 @@ pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8, clean: boo
                 curt.next = tok;
                 curt = curt.next;
             },
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-' => {
+                const tok = consumeNumber(allocator) catch return TokenizeError.UnexpectedChar;
+                curt.next = tok;
+                curt = curt.next;
+            },
             '{', '}', '[', ']', ':', ',' => {
                 const tok = consumeSymbol(allocator) catch unreachable;
                 curt.next = tok;
@@ -186,6 +229,71 @@ test "str" {
     // eql関数を使用して比較
     try std.testing.expect(expect_str_ptr.*.eql(actual.*));
     try std.testing.expect(expect_str_ptr.next.*.eql(actual.next.*));
+}
+
+test "number" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    // 整数のテスト
+    {
+        const expect_num_ptr = token.init(arena.allocator(), tokenkind.number, "42") catch unreachable;
+        const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+        expect_num_ptr.next = expect_eof_ptr;
+
+        const actual = tokenize(arena.allocator(), "42", false) catch unreachable;
+
+        try std.testing.expect(expect_num_ptr.*.eql(actual.*));
+        try std.testing.expect(expect_eof_ptr.*.eql(actual.next.*));
+    }
+
+    // 浮動小数点数のテスト
+    {
+        const expect_num_ptr = token.init(arena.allocator(), tokenkind.number, "3.14") catch unreachable;
+        const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+        expect_num_ptr.next = expect_eof_ptr;
+
+        const actual = tokenize(arena.allocator(), "3.14", false) catch unreachable;
+
+        try std.testing.expect(expect_num_ptr.*.eql(actual.*));
+        try std.testing.expect(expect_eof_ptr.*.eql(actual.next.*));
+    }
+
+    // 負の数のテスト
+    {
+        const expect_num_ptr = token.init(arena.allocator(), tokenkind.number, "-10") catch unreachable;
+        const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+        expect_num_ptr.next = expect_eof_ptr;
+
+        const actual = tokenize(arena.allocator(), "-10", false) catch unreachable;
+
+        try std.testing.expect(expect_num_ptr.*.eql(actual.*));
+        try std.testing.expect(expect_eof_ptr.*.eql(actual.next.*));
+    }
+
+    // 複合的なJSONでの数値テスト
+    {
+        const exp_lcb = token.init(arena.allocator(), tokenkind.lcb, &.{}) catch unreachable;
+        const exp_key = token.init(arena.allocator(), tokenkind.string, "value") catch unreachable;
+        const exp_colon = token.init(arena.allocator(), tokenkind.colon, &.{}) catch unreachable;
+        const exp_num = token.init(arena.allocator(), tokenkind.number, "123.45") catch unreachable;
+        const exp_rcb = token.init(arena.allocator(), tokenkind.rcb, &.{}) catch unreachable;
+        const exp_eof = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+        exp_lcb.next = exp_key;
+        exp_key.next = exp_colon;
+        exp_colon.next = exp_num;
+        exp_num.next = exp_rcb;
+        exp_rcb.next = exp_eof;
+
+        const actual = tokenize(arena.allocator(), "{\"value\":123.45}", true) catch unreachable;
+
+        try std.testing.expect(exp_lcb.*.eql(actual.*));
+        try std.testing.expect(exp_key.*.eql(actual.next.*));
+        try std.testing.expect(exp_colon.*.eql(actual.next.next.*));
+        try std.testing.expect(exp_num.*.eql(actual.next.next.next.*));
+        try std.testing.expect(exp_rcb.*.eql(actual.next.next.next.next.*));
+        try std.testing.expect(exp_eof.*.eql(actual.next.next.next.next.next.*));
+    }
 }
 
 test "ws-str-ws" {
