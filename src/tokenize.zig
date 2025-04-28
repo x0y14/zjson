@@ -6,6 +6,9 @@ pub const tokenkind = enum {
     whitespace,
     string,
     number,
+    true,
+    false,
+    nil,
 
     lcb, // {
     rcb, // }
@@ -122,6 +125,69 @@ fn consumeNumber(allocator: std.mem.Allocator) TokenizeError!*token {
     return str_ptr;
 }
 
+fn consumeTrue(allocator: std.mem.Allocator) TokenizeError!*token {
+    if (chars[pos] != 't') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'r') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'u') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'e') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    return token.init(allocator, tokenkind.true, &.{}) catch return TokenizeError.OutOfMemory;
+}
+
+fn consumeFalse(allocator: std.mem.Allocator) TokenizeError!*token {
+    if (chars[pos] != 'f') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'a') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'l') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 's') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'e') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    return token.init(allocator, tokenkind.false, &.{}) catch return TokenizeError.OutOfMemory;
+}
+fn consumeNil(allocator: std.mem.Allocator) TokenizeError!*token {
+    if (chars[pos] != 'n') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'u') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'l') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    if (chars[pos] != 'l') {
+        return TokenizeError.UnexpectedChar;
+    }
+    pos += 1;
+    return token.init(allocator, tokenkind.nil, &.{}) catch return TokenizeError.OutOfMemory;
+}
+
 fn consumeSymbol(allocator: std.mem.Allocator) TokenizeError!*token {
     switch (chars[pos]) {
         '{' => {
@@ -177,6 +243,21 @@ pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8, clean: boo
             },
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-' => {
                 const tok = consumeNumber(allocator) catch return TokenizeError.UnexpectedChar;
+                curt.next = tok;
+                curt = curt.next;
+            },
+            't' => {
+                const tok = consumeTrue(allocator) catch return TokenizeError.UnexpectedChar;
+                curt.next = tok;
+                curt = curt.next;
+            },
+            'f' => {
+                const tok = consumeFalse(allocator) catch return TokenizeError.UnexpectedChar;
+                curt.next = tok;
+                curt = curt.next;
+            },
+            'n' => {
+                const tok = consumeNil(allocator) catch return TokenizeError.UnexpectedChar;
                 curt.next = tok;
                 curt = curt.next;
             },
@@ -294,6 +375,43 @@ test "number" {
         try std.testing.expect(exp_rcb.*.eql(actual.next.next.next.next.*));
         try std.testing.expect(exp_eof.*.eql(actual.next.next.next.next.next.*));
     }
+}
+
+test "bool" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    {
+        const expect_true_ptr = token.init(arena.allocator(), tokenkind.true, &.{}) catch unreachable;
+        const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+        expect_true_ptr.next = expect_eof_ptr;
+
+        const actual = tokenize(arena.allocator(), "true", false) catch unreachable;
+        try std.testing.expect(expect_true_ptr.*.eql(actual.*));
+        try std.testing.expect(expect_eof_ptr.*.eql(actual.next.*));
+    }
+    {
+        const expect_false_ptr = token.init(arena.allocator(), tokenkind.false, &.{}) catch unreachable;
+        const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+        expect_false_ptr.next = expect_eof_ptr;
+
+        const actual = tokenize(arena.allocator(), "false", false) catch unreachable;
+        try std.testing.expect(expect_false_ptr.*.eql(actual.*));
+        try std.testing.expect(expect_eof_ptr.*.eql(actual.next.*));
+    }
+}
+
+test "null" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const expect_null_ptr = token.init(arena.allocator(), tokenkind.nil, &.{}) catch unreachable;
+    const expect_eof_ptr = token.init(arena.allocator(), tokenkind.eof, &.{}) catch unreachable;
+    expect_null_ptr.next = expect_eof_ptr;
+
+    const actual = tokenize(arena.allocator(), "null", false) catch unreachable;
+    try std.testing.expect(expect_null_ptr.*.eql(actual.*));
+    try std.testing.expect(expect_eof_ptr.*.eql(actual.next.*));
 }
 
 test "ws-str-ws" {

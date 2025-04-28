@@ -123,6 +123,21 @@ fn value(allocator: std.mem.Allocator) ParseError!*Node {
     if (v != null) {
         return Node.initNumber(allocator, v.?.raw) catch return ParseError.OutOfMemory;
     }
+    // boolean true
+    v = consume(tknz.tokenkind.true);
+    if (v != null) {
+        return Node.initBoolean(allocator, true) catch return ParseError.OutOfMemory;
+    }
+    // boolean false
+    v = consume(tknz.tokenkind.false);
+    if (v != null) {
+        return Node.initBoolean(allocator, false) catch return ParseError.OutOfMemory;
+    }
+    // null
+    v = consume(tknz.tokenkind.nil);
+    if (v != null) {
+        return Node.initNil(allocator) catch return ParseError.OutOfMemory;
+    }
     // object
     v = consume(tknz.tokenkind.lcb);
     if (v != null) {
@@ -432,5 +447,42 @@ test "number" {
     const got = parse(arena.allocator(), tokens) catch unreachable;
 
     // 結果の検証
+    try std.testing.expect(nodesEqual(want, got));
+}
+
+test "bool" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    // true のテスト
+    const w_key_true = Node.initString(arena.allocator(), "flag") catch unreachable;
+    const w_val_true = Node.initBoolean(arena.allocator(), true) catch unreachable;
+    const w_kv_true = Node.initKV(arena.allocator(), w_key_true, w_val_true) catch unreachable;
+    const want_true = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_true})) catch unreachable;
+    const tokens_true = tknz.tokenize(arena.allocator(), "{\"flag\":true}", true) catch unreachable;
+    const got_true = parse(arena.allocator(), tokens_true) catch unreachable;
+    try std.testing.expect(nodesEqual(want_true, got_true));
+
+    // false のテスト
+    const w_key_false = Node.initString(arena.allocator(), "flag") catch unreachable;
+    const w_val_false = Node.initBoolean(arena.allocator(), false) catch unreachable;
+    const w_kv_false = Node.initKV(arena.allocator(), w_key_false, w_val_false) catch unreachable;
+    const want_false = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_false})) catch unreachable;
+    const tokens_false = tknz.tokenize(arena.allocator(), "{\"flag\":false}", true) catch unreachable;
+    const got_false = parse(arena.allocator(), tokens_false) catch unreachable;
+    try std.testing.expect(nodesEqual(want_false, got_false));
+}
+
+test "null" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const w_key = Node.initString(arena.allocator(), "nothing") catch unreachable;
+    const w_val = Node.initNil(arena.allocator()) catch unreachable;
+    const w_kv = Node.initKV(arena.allocator(), w_key, w_val) catch unreachable;
+    const want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv})) catch unreachable;
+
+    const tokens = tknz.tokenize(arena.allocator(), "{\"nothing\":null}", true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
 }
