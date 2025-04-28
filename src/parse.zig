@@ -486,3 +486,101 @@ test "null" {
     const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
 }
+
+test "large complex api response" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const json_str =
+        \\{
+        \\  "stats": {
+        \\    "total_count": 100,
+        \\    "next_page": null,
+        \\    "errors": []
+        \\  },
+        \\  "users": [
+        \\    {
+        \\      "id": 1,
+        \\      "name": "Alice",
+        \\      "active": true,
+        \\      "roles": ["admin", "editor"],
+        \\      "metadata": {
+        \\        "last_login": "2025-04-28T12:34:56Z",
+        \\        "preferences": ["email", "sms"]
+        \\      }
+        \\    },
+        \\    {
+        \\      "id": 2,
+        \\      "name": "Bob",
+        \\      "active": false,
+        \\      "roles": ["viewer"],
+        \\      "metadata": {
+        \\        "last_login": "2025-04-27T08:15:00Z",
+        \\        "preferences": ["push"]
+        \\      }
+        \\    }
+        \\  ]
+        \\}
+    ;
+
+    const tokens = tknz.tokenize(arena.allocator(), json_str, true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
+
+    // --- build expected Node tree ---
+    // stats
+    const k_total = Node.initString(arena.allocator(), "total_count") catch unreachable;
+    const v_total = Node.initNumber(arena.allocator(), "100") catch unreachable;
+    const kv_total = Node.initKV(arena.allocator(), k_total, v_total) catch unreachable;
+
+    const k_next = Node.initString(arena.allocator(), "next_page") catch unreachable;
+    const v_next = Node.initNil(arena.allocator()) catch unreachable;
+    const kv_next = Node.initKV(arena.allocator(), k_next, v_next) catch unreachable;
+
+    const k_errors = Node.initString(arena.allocator(), "errors") catch unreachable;
+    const v_errors = Node.initArray(arena.allocator(), @constCast(&[_]*Node{})) catch unreachable;
+    const kv_errors = Node.initKV(arena.allocator(), k_errors, v_errors) catch unreachable;
+
+    const stats_obj = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ kv_total, kv_next, kv_errors })) catch unreachable;
+    const kv_stats = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "stats") catch unreachable, stats_obj) catch unreachable;
+
+    // user1
+    const u1_id_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "id") catch unreachable, Node.initNumber(arena.allocator(), "1") catch unreachable) catch unreachable;
+    const u1_nm_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "name") catch unreachable, Node.initString(arena.allocator(), "Alice") catch unreachable) catch unreachable;
+    const u1_act_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "active") catch unreachable, Node.initBoolean(arena.allocator(), true) catch unreachable) catch unreachable;
+    const u1_roles = Node.initArray(arena.allocator(), @constCast(&[_]*Node{
+        Node.initString(arena.allocator(), "admin") catch unreachable,
+        Node.initString(arena.allocator(), "editor") catch unreachable,
+    })) catch unreachable;
+    const u1_roles_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "roles") catch unreachable, u1_roles) catch unreachable;
+    const u1_last_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "last_login") catch unreachable, Node.initString(arena.allocator(), "2025-04-28T12:34:56Z") catch unreachable) catch unreachable;
+    const u1_pref_arr = Node.initArray(arena.allocator(), @constCast(&[_]*Node{
+        Node.initString(arena.allocator(), "email") catch unreachable,
+        Node.initString(arena.allocator(), "sms") catch unreachable,
+    })) catch unreachable;
+    const u1_pref_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "preferences") catch unreachable, u1_pref_arr) catch unreachable;
+    const u1_meta = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ u1_last_kv, u1_pref_kv })) catch unreachable;
+    const u1_meta_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "metadata") catch unreachable, u1_meta) catch unreachable;
+    const user1 = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ u1_id_kv, u1_nm_kv, u1_act_kv, u1_roles_kv, u1_meta_kv })) catch unreachable;
+
+    // user2
+    const u2_id_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "id") catch unreachable, Node.initNumber(arena.allocator(), "2") catch unreachable) catch unreachable;
+    const u2_nm_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "name") catch unreachable, Node.initString(arena.allocator(), "Bob") catch unreachable) catch unreachable;
+    const u2_act_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "active") catch unreachable, Node.initBoolean(arena.allocator(), false) catch unreachable) catch unreachable;
+    const u2_roles = Node.initArray(arena.allocator(), @constCast(&[_]*Node{
+        Node.initString(arena.allocator(), "viewer") catch unreachable,
+    })) catch unreachable;
+    const u2_roles_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "roles") catch unreachable, u2_roles) catch unreachable;
+    const u2_last_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "last_login") catch unreachable, Node.initString(arena.allocator(), "2025-04-27T08:15:00Z") catch unreachable) catch unreachable;
+    const u2_pref_arr = Node.initArray(arena.allocator(), @constCast(&[_]*Node{Node.initString(arena.allocator(), "push") catch unreachable})) catch unreachable;
+    const u2_pref_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "preferences") catch unreachable, u2_pref_arr) catch unreachable;
+    const u2_meta = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ u2_last_kv, u2_pref_kv })) catch unreachable;
+    const u2_meta_kv = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "metadata") catch unreachable, u2_meta) catch unreachable;
+    const user2 = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ u2_id_kv, u2_nm_kv, u2_act_kv, u2_roles_kv, u2_meta_kv })) catch unreachable;
+
+    const users_arr = Node.initArray(arena.allocator(), @constCast(&[_]*Node{ user1, user2 })) catch unreachable;
+    const kv_users = Node.initKV(arena.allocator(), Node.initString(arena.allocator(), "users") catch unreachable, users_arr) catch unreachable;
+
+    const want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ kv_stats, kv_users })) catch unreachable;
+
+    try std.testing.expect(nodesEqual(want, got));
+}

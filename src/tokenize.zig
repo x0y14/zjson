@@ -48,7 +48,7 @@ pub const TokenizeError = error{
 };
 
 var chars: []const u8 = "";
-var pos: u8 = 0;
+var pos: usize = 0;
 var curt: *token = undefined;
 
 fn consumeWhiteSpace(allocator: std.mem.Allocator) *token {
