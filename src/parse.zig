@@ -266,4 +266,34 @@ test "parse" {
     tokens = tknz.tokenize(arena.allocator(), "[\"a\", \"b\", \"c\"]", true) catch unreachable;
     got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
+
+    // object in object
+    // { "john": { "type": "human" } }
+    // { "type": "human" }
+    const w_k_type = Node.initString(arena.allocator(), "type") catch unreachable;
+    const w_v_human = Node.initString(arena.allocator(), "human") catch unreachable;
+    const w_kv_human = Node.initKV(arena.allocator(), w_k_type, w_v_human) catch unreachable;
+    const w_obj_child = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_human})) catch unreachable;
+    // { "john": ... }
+    const w_k_john = Node.initString(arena.allocator(), "john") catch unreachable;
+    const w_kv_john = Node.initKV(arena.allocator(), w_k_john, w_obj_child) catch unreachable;
+    want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_john})) catch unreachable;
+    tokens = tknz.tokenize(arena.allocator(), "{ \"john\": { \"type\": \"human\" } }", true) catch unreachable;
+    got = parse(arena.allocator(), tokens) catch unreachable;
+    try std.testing.expect(nodesEqual(want, got));
+
+    // object with array
+    // { "children": [ "john", "tom", "candy" ] }
+    // [ "john", "tom", "candy" ]
+    const w_john = Node.initString(arena.allocator(), "john") catch unreachable;
+    const w_tom = Node.initString(arena.allocator(), "tom") catch unreachable;
+    const w_candy = Node.initString(arena.allocator(), "candy") catch unreachable;
+    const w_children_array = Node.initArray(arena.allocator(), @constCast(&[_]*Node{ w_john, w_tom, w_candy })) catch unreachable;
+    // { "children": ... }
+    const w_k_children = Node.initString(arena.allocator(), "children") catch unreachable;
+    const w_kv_children = Node.initKV(arena.allocator(), w_k_children, w_children_array) catch unreachable;
+    want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_children})) catch unreachable;
+    tokens = tknz.tokenize(arena.allocator(), "{ \"children\": [ \"john\", \"tom\", \"candy\" ] }", true) catch unreachable;
+    got = parse(arena.allocator(), tokens) catch unreachable;
+    try std.testing.expect(nodesEqual(want, got));
 }
