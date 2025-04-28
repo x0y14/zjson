@@ -50,7 +50,7 @@ fn consumeWhiteSpace(allocator: std.mem.Allocator) *token {
     var list = std.ArrayList(u8).init(allocator);
     ws_loop: while (chars.len > pos) {
         switch (chars[pos]) {
-            ' ' => {
+            ' ', '\n', '\r', '\t' => {
                 list.append(' ') catch unreachable;
                 pos += 1;
             },
@@ -125,7 +125,7 @@ pub fn tokenize(allocator: std.mem.Allocator, user_input: []const u8, clean: boo
 
     while (chars.len > pos) {
         switch (chars[pos]) {
-            ' ' => {
+            ' ', '\n', '\r', '\t' => {
                 const tok = consumeWhiteSpace(allocator);
                 if (!clean) {
                     curt.next = tok;
