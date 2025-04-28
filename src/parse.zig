@@ -22,7 +22,7 @@ pub const Node = union(Nodekind) {
 
     const KV = struct { lhs: *Node, rhs: *Node };
     const String = struct { v: []const u8 };
-    const Number = struct { v: i8 };
+    const Number = struct { v: []const u8 };
     const Boolean = struct { v: bool };
     const Nil = struct {};
     const Children = struct { v: []*Node };
@@ -40,7 +40,7 @@ pub const Node = union(Nodekind) {
         return node;
     }
 
-    pub fn initNumber(allocator: std.mem.Allocator, v: i8) !*Node {
+    pub fn initNumber(allocator: std.mem.Allocator, v: []const u8) !*Node {
         const node = try allocator.create(Node);
         node.* = Node{ .number = Number{ .v = v } };
         return node;
@@ -202,7 +202,7 @@ fn nodesEqual(a: *Node, b: *Node) bool {
             else => return false,
         },
         .number => |numA| switch (b.*) {
-            .number => |numB| return numA.v == numB.v,
+            .number => |numB| return std.mem.eql(u8, numA.v, numB.v),
             else => return false,
         },
         .boolean => |boolA| switch (b.*) {
