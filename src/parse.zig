@@ -344,3 +344,51 @@ test "multiple kv pairs" {
     const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
 }
+
+test "object with array of objects" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    // { "children": [ {"name":"john", "sex": "male"}, {"name": "tom", "sex": "male"}, {"name": "candy", "sex": "female"} ] }
+    // john
+    const w_john_name_key = Node.initString(arena.allocator(), "name") catch unreachable;
+    const w_john_name_val = Node.initString(arena.allocator(), "john") catch unreachable;
+    const w_john_name_kv = Node.initKV(arena.allocator(), w_john_name_key, w_john_name_val) catch unreachable;
+    const w_john_sex_key = Node.initString(arena.allocator(), "sex") catch unreachable;
+    const w_john_sex_val = Node.initString(arena.allocator(), "male") catch unreachable;
+    const w_john_sex_kv = Node.initKV(arena.allocator(), w_john_sex_key, w_john_sex_val) catch unreachable;
+    const w_john_obj = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ w_john_name_kv, w_john_sex_kv })) catch unreachable;
+
+    // tom
+    const w_tom_name_key = Node.initString(arena.allocator(), "name") catch unreachable;
+    const w_tom_name_val = Node.initString(arena.allocator(), "tom") catch unreachable;
+    const w_tom_name_kv = Node.initKV(arena.allocator(), w_tom_name_key, w_tom_name_val) catch unreachable;
+    const w_tom_sex_key = Node.initString(arena.allocator(), "sex") catch unreachable;
+    const w_tom_sex_val = Node.initString(arena.allocator(), "male") catch unreachable;
+    const w_tom_sex_kv = Node.initKV(arena.allocator(), w_tom_sex_key, w_tom_sex_val) catch unreachable;
+    const w_tom_obj = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ w_tom_name_kv, w_tom_sex_kv })) catch unreachable;
+
+    // candy
+    const w_candy_name_key = Node.initString(arena.allocator(), "name") catch unreachable;
+    const w_candy_name_val = Node.initString(arena.allocator(), "candy") catch unreachable;
+    const w_candy_name_kv = Node.initKV(arena.allocator(), w_candy_name_key, w_candy_name_val) catch unreachable;
+    const w_candy_sex_key = Node.initString(arena.allocator(), "sex") catch unreachable;
+    const w_candy_sex_val = Node.initString(arena.allocator(), "female") catch unreachable;
+    const w_candy_sex_kv = Node.initKV(arena.allocator(), w_candy_sex_key, w_candy_sex_val) catch unreachable;
+    const w_candy_obj = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ w_candy_name_kv, w_candy_sex_kv })) catch unreachable;
+
+    // object array
+    const w_children_array = Node.initArray(arena.allocator(), @constCast(&[_]*Node{ w_john_obj, w_tom_obj, w_candy_obj })) catch unreachable;
+
+    // children
+    const w_k_children = Node.initString(arena.allocator(), "children") catch unreachable;
+    const w_kv_children = Node.initKV(arena.allocator(), w_k_children, w_children_array) catch unreachable;
+
+    const want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_children})) catch unreachable;
+
+    const tokens = tknz.tokenize(arena.allocator(), "{ \"children\": [ {\"name\":\"john\", \"sex\": \"male\"}, {\"name\": \"tom\", \"sex\": \"male\"}, {\"name\": \"candy\", \"sex\": \"female\"} ] }", true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
+
+    // 9. 比較
+    try std.testing.expect(nodesEqual(want, got));
+}
