@@ -245,39 +245,54 @@ fn nodesEqual(a: *Node, b: *Node) bool {
     }
 }
 
-test "parse" {
+test "unexpect error" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    // unexpected error
+    const tokens = tknz.tokenize(arena.allocator(), "", true) catch unreachable;
+    try std.testing.expectEqual(ParseError.UnexpectedToken, parse(arena.allocator(), tokens));
+}
+
+test "empty object" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
 
-    // unexpected error
-    var tokens = tknz.tokenize(arena.allocator(), "", true) catch unreachable;
-    try std.testing.expectEqual(ParseError.UnexpectedToken, parse(arena.allocator(), tokens));
-
-    // empty obj
-    var want = Node.initObject(arena.allocator(), &.{}) catch unreachable;
-    tokens = tknz.tokenize(arena.allocator(), "{}", true) catch unreachable;
-    var got = parse(arena.allocator(), tokens) catch unreachable;
+    const want = Node.initObject(arena.allocator(), &.{}) catch unreachable;
+    const tokens = tknz.tokenize(arena.allocator(), "{}", true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
+}
 
-    // string-kv
+test "string-kv" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
     const w_key = Node.initString(arena.allocator(), "key") catch unreachable;
     const w_val = Node.initString(arena.allocator(), "value") catch unreachable;
     const w_kv = Node.initKV(arena.allocator(), w_key, w_val) catch unreachable;
-    want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv})) catch unreachable;
-    tokens = tknz.tokenize(arena.allocator(), "{\"key\":\"value\"}", true) catch unreachable;
-    got = parse(arena.allocator(), tokens) catch unreachable;
+    const want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv})) catch unreachable;
+    const tokens = tknz.tokenize(arena.allocator(), "{\"key\":\"value\"}", true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
+}
 
-    // string-array
+test "string-array" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
     const w_a = Node.initString(arena.allocator(), "a") catch unreachable;
     const w_b = Node.initString(arena.allocator(), "b") catch unreachable;
     const w_c = Node.initString(arena.allocator(), "c") catch unreachable;
-    want = Node.initArray(arena.allocator(), @constCast(&[_]*Node{ w_a, w_b, w_c })) catch unreachable;
-    tokens = tknz.tokenize(arena.allocator(), "[\"a\", \"b\", \"c\"]", true) catch unreachable;
-    got = parse(arena.allocator(), tokens) catch unreachable;
+    const want = Node.initArray(arena.allocator(), @constCast(&[_]*Node{ w_a, w_b, w_c })) catch unreachable;
+    const tokens = tknz.tokenize(arena.allocator(), "[\"a\", \"b\", \"c\"]", true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
+}
 
-    // object in object
+test "object in object" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
     // { "john": { "type": "human" } }
     // { "type": "human" }
     const w_k_type = Node.initString(arena.allocator(), "type") catch unreachable;
@@ -287,12 +302,15 @@ test "parse" {
     // { "john": ... }
     const w_k_john = Node.initString(arena.allocator(), "john") catch unreachable;
     const w_kv_john = Node.initKV(arena.allocator(), w_k_john, w_obj_child) catch unreachable;
-    want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_john})) catch unreachable;
-    tokens = tknz.tokenize(arena.allocator(), "{ \"john\": { \"type\": \"human\" } }", true) catch unreachable;
-    got = parse(arena.allocator(), tokens) catch unreachable;
+    const want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_john})) catch unreachable;
+    const tokens = tknz.tokenize(arena.allocator(), "{ \"john\": { \"type\": \"human\" } }", true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
+}
 
-    // object with array
+test "object with array" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
     // { "children": [ "john", "tom", "candy" ] }
     // [ "john", "tom", "candy" ]
     const w_john = Node.initString(arena.allocator(), "john") catch unreachable;
@@ -302,12 +320,15 @@ test "parse" {
     // { "children": ... }
     const w_k_children = Node.initString(arena.allocator(), "children") catch unreachable;
     const w_kv_children = Node.initKV(arena.allocator(), w_k_children, w_children_array) catch unreachable;
-    want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_children})) catch unreachable;
-    tokens = tknz.tokenize(arena.allocator(), "{ \"children\": [ \"john\", \"tom\", \"candy\" ] }", true) catch unreachable;
-    got = parse(arena.allocator(), tokens) catch unreachable;
+    const want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{w_kv_children})) catch unreachable;
+    const tokens = tknz.tokenize(arena.allocator(), "{ \"children\": [ \"john\", \"tom\", \"candy\" ] }", true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
+}
 
-    // multiple key-value pairs
+test "multiple kv pairs" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
     // { "key1": "value1", "key2": "value2" }
     // "key1": "value1"
     const w_key1 = Node.initString(arena.allocator(), "key1") catch unreachable;
@@ -318,8 +339,8 @@ test "parse" {
     const w_val2 = Node.initString(arena.allocator(), "value2") catch unreachable;
     const w_kv2 = Node.initKV(arena.allocator(), w_key2, w_val2) catch unreachable;
     // { ..., ... }
-    want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ w_kv1, w_kv2 })) catch unreachable;
-    tokens = tknz.tokenize(arena.allocator(), "{ \"key1\": \"value1\", \"key2\": \"value2\" }", true) catch unreachable;
-    got = parse(arena.allocator(), tokens) catch unreachable;
+    const want = Node.initObject(arena.allocator(), @constCast(&[_]*Node{ w_kv1, w_kv2 })) catch unreachable;
+    const tokens = tknz.tokenize(arena.allocator(), "{ \"key1\": \"value1\", \"key2\": \"value2\" }", true) catch unreachable;
+    const got = parse(arena.allocator(), tokens) catch unreachable;
     try std.testing.expect(nodesEqual(want, got));
 }
