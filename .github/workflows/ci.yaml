@@ -9,8 +9,4 @@ jobs:
       - uses: mlugg/setup-zig@v1
       - run: zig build test
       - name: my code test
-        run: |
-          zig test src/root.zig
-          zig test src/main.zig
-          zig test src/tokenize.zig
-          zig test src/parse.zig
+        run: zig test src/tests.zig
